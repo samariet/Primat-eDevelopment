@@ -1,0 +1,657 @@
+
+###Setup###
+setwd("~/Lab/Primate Development/Data/Run 2")
+library("limma")
+library("edgeR")
+library("plyr")
+library("ggplot2")
+theme_set(theme_bw(base_size = 16))
+library("biomaRt")
+library("RColorBrewer")
+library("VennDiagram")
+library("gridExtra")
+library("car")
+library("ggfortify")
+library(gplots)
+library(RColorBrewer)
+pal <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Set2"), brewer.pal(12, "Set3"))
+#library("ggbiplot")
+
+###Make gene x sample matrix###
+chimps <- read.table("chimp.fc.Mapping34.final.txt", header = TRUE)
+chimps <- t(chimps)
+humans <- read.table ("human.fc.Mapping34.final.txt", header = TRUE)
+humans <- t(humans)
+all(rownames(chimps) == rownames(humans)) #are they the same
+both <- cbind(humans, chimps)
+chimps_gene <- data.frame(chimps)
+humans_gene <- data.frame(humans)
+cmh <- colMeans(humans_gene)
+cmc <- colMeans(chimps_gene)
+mean(colMeans(humans_gene))
+mean(colMeans(chimps_gene))
+hist(cmh, breaks=100)
+hist(cmc, breaks=100)
+csh <- colSums(humans_gene)
+csc <- colSums(chimps_gene)
+hist(csh, breaks = 100)
+hist(csc, breaks = 100)
+mean (csh)
+mean(csc)
+barplot(csh)
+sample_names <- colnames(both)
+sample_names
+write.table(sample_names, file = "samplenames.txt")
+
+###Deal with technical factors###
+sample_features <- read.table("samplefactors.txt", header=TRUE)
+dim(sample_features)
+rownames(sample_features) <- sample_names
+rownames(sample_features)
+#john_table <- rbind(sample_features[,7], sample_features[,2], both)
+#write.table(john_table, sep="\t", file="john_table.txt")
+both_minus <- both #if you remove nothing, cause call this later
+#remove outlier
+remove <- c(1)
+sample_names[remove]
+both_minus <- both[,-remove]
+sample_features <- sample_features[-remove,]
+sample_names <- sample_names[-remove]
+dim(both_minus)
+dim(sample_features)
+
+batch <- sample_features[,3]
+sex <- sample_features[,4]
+day <- sample_features[,2]
+RIN <- sample_features[,9]
+line <- sample_features[,1]
+mastermix <- sample_features[,10]
+rnabatch <- sample_features[,6]
+rnadate <- sample_features[,5]
+class(day) <- "character"
+species <- sample_features[,7]
+samplenames <- sample_features[,8]
+samplenames <- lapply(samplenames, as.character, stringsAsFactors=FALSE)
+names_same <- cbind(sample_names, samplenames)
+head(names_same) #won't be the same if you've removed samples
+
+hist(rowSums(both), breaks=100)
+
+bsh <- colSums(both_minus)
+bsh2 <- cbind(bsh,species)
+bsh2 <- bsh2[order(bsh2[,1]),] 
+barplot(bsh2[,1], names=bsh2[,2])
+
+###CPM transformation###
+dat_cpm <- cpm(both_minus, log=TRUE)
+#dat_cpm[mapply(is.infinite(dat_cpm))] <- -99999
+dat_cpm[mapply(is.infinite, dat_cpm)] <- NA
+#dat_cpm[!is.finite(dat_cpm)] <- NA
+all(is.finite(dat_cpm))
+hist(rowMeans(dat_cpm))
+hist(rowSums(dat_cpm))
+hist(dat_cpm)
+
+###Remove lowly expressed genes ### WILL NEED TO ADJUST THIS SECTION DEPENDING ON REMOVED SAMPLES ####
+#expr_genes <- rowMeans(dat_cpm)>-2
+#length(expr_genes)
+expr_genes <- (rowSums(dat_cpm[,1:31] > -2) > 10 & rowSums(dat_cpm[,32:63] > -2) > 10)
+sum(expr_genes)
+Number_expr_genes <- sum(expr_genes)
+dat_cpm_trimmed <- dat_cpm [expr_genes,]
+both_minus <- both_minus[expr_genes,]
+both <- both[expr_genes,]
+genesxsamples <- dim(dat_cpm_trimmed)
+hist(dat_cpm_trimmed)
+joyce_table <- rbind(sample_features[,7], sample_features[,2], both)
+write.table(joyce_table, sep="\t", file="joyce_table.txt")
+
+###PCA###
+pca <- prcomp(x = t(dat_cpm_trimmed), retx = TRUE, center = TRUE, scale = TRUE)
+#plot_pca <- ggplot( mapping = aes(x = PC1, y = PC2,
+#                                 col = time, size = control)) +
+#  geom_point() +
+#  scale_size_discrete(range = c(5, 2)) +
+#  scale_color_brewer(palette = "Dark2")
+#plot_pca <- plot(pca)
+matrixpca <- pca$x
+pc1 <- matrixpca[,1]
+pc2 <- matrixpca[,2]
+pc3 <- matrixpca[,3]
+pc4 <- matrixpca[,4]
+pc5 <- matrixpca[,5]
+
+pcs <- data.frame(pc1, pc2, pc3, pc4, pc5)
+summary <- summary(pca)
+summary$PC1
+summary$importance[2,1]*100),"% of variance", sep=" ")
+xlab <- paste("PC!", summary$importance[2,1]*100, "% of variance")
+xlab
+ggplot(data=pcs, aes(x=pc1, y=pc2, color=day, shape=species, size=2)) +
+geom_point() + xlab(paste("PC1", (summary$importance[2,1]*100), "% of variance")) + ylab(paste("PC2", (summary$importance[2,2]*100), "% of variance"))
+
+
+ggplot(data=pcs, aes(x=pc2, y=pc3, color=day, shape=species, size=2)) +
+geom_point() + xlab(paste("PC2", (summary$importance[2,2]*100), "% of variance")) + ylab(paste("PC3", (summary$importance[2,3]*100), "% of variance"))
+
+
+plot(pca$x, col=day)
+text(pca$x, labels=samplenames)
+#plot(pca$x[,(2:3)], col=rnabatch)
+#text(pca$x[,(2:3)], labels=samplenames)
+#plot(pca$x[,(2:4)], col=rnabatch)
+#text(pca$x[,(2:4)], labels=samplenames)
+
+
+###Heatmaps###
+#Do correlation- can specify which type of correlation to perform
+cors <- cor(dat_cpm_trimmed, method="pearson", use="pairwise.complete.obs")
+
+#Set Labels for your axes
+labels <- sample_names
+
+#Nice to use so that previous formatting is reset
+dev.off()
+
+#Set pretty blue color for your heat map
+
+colors <- colorRampPalette(c(brewer.pal(9, "Blues")[1],brewer.pal(9, "Blues")[9]))(100)
+
+#Call the function (basic code)
+heatmap.2( cors, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white")
+
+#Fancy labeling and coloring 
+
+heatmap.2( cors, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white", labCol=labels, ColSideColors=pal[as.integer(as.factor(BS_seq_info_two[ ,2]))], RowSideColors=pal[10:13][as.integer(as.factor(BS_seq_info_two[ ,3]))], cexCol = 1.5)
+
+
+### Variance ###
+day <- as.factor(day)
+both <- dat_cpm_trimmed
+#both_day <- rbind(both, day)
+d0H <- both[,day=="0" & species=="H"]
+dim(d0H)
+d0C <- both[,day=="0" & species=="C"]
+dim(d0C)
+
+d1H <- both[,day=="1" & species=="H"]
+dim(d1H)
+d1C <- both[,day=="1" & species=="C"]
+dim(d1C)
+
+
+d2H <- both[,day=="2" & species=="H"]
+dim(d2H)
+d2C <- both[,day=="2" & species=="C"]
+dim(d2C)
+
+
+d3H <- both[,day=="3" & species=="H"]
+dim(d3H)
+d3C <- both[,day=="3" & species=="C"]
+dim(d3C)
+
+
+var_d0H <- apply(d0H, 1, var)
+hist(var_d0H)
+m0h <- mean(var_d0H)
+var_d1H <- apply(d1H, 1, var)
+hist(var_d1H)
+m1h <- mean(var_d1H)
+var_d2H <- apply(d2H, 1, var)
+hist(var_d2H)
+m2h <- mean(var_d2H)
+var_d3H <- apply(d3H, 1, var)
+hist(var_d3H)
+m3h <- mean(var_d3H)
+
+var_d0C <- apply(d0C, 1, var)
+hist(var_d0C)
+m0c <- mean(var_d0C)
+var_d1C <- apply(d1C, 1, var)
+hist(var_d1C)
+m1c <- mean(var_d1C)
+var_d2C <- apply(d2C, 1, var)
+hist(var_d2C)
+m2c <- mean(var_d2C)
+var_d3C <- apply(d3C, 1, var)
+hist(var_d3C)
+m3c <- mean(var_d3C)
+
+means <- c(m0h, m1h, m2h, m3h, m0c, m1c, m2c, m3c)
+plot(means)
+
+###Linear Model###
+for i in length()
+lmfit <- lm(dat_cpm_trimmed[i,] = species + day)
+
+###Limma###
+dim(both_minus)
+species <- factor(species)
+species <- relevel(species, ref="C") 
+day <- factor(day)
+
+#contrasts(species) <- contr.sum(2)
+#contrasts(day) <- contr.sum(4)
+m <- factor(paste(species, day, sep="."))
+m
+day
+md <- factor(c(day), levels="C.0")
+md
+design <- model.matrix(~species+day+species*day)
+design
+
+#cont_matrix<-makeContrasts(D1=(day1, D2=(day2), D3=(day3), levels=design)
+y <- DGEList(both_minus)
+y <- calcNormFactors(y)
+v <- voom(y, design)
+fit <- lmFit(v, design)
+#fit2 <- contrasts.fit(fit, cont_matrix)
+fit2 <- eBayes(fit)
+stats_list <- list()
+pv_list <- fit2$p.value
+output_all <- topTable(fit2, number=20000, sort.by="none")
+#output_all_1 <- topTable(fit2, coef="D1", number=20000, sort.by="none")
+#output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
+#output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
+head(output_all)
+
+Bspecies <- output_all$speciesC
+Bspecies_chimpref <- Bspecies
+Bspecies_humanref <- Bspecies
+
+names(Bspecies) <- rownames(output_all)
+Bspecies <- Bspecies[order(Bspecies)]
+Pspecies <- pv_list[,2]
+adjPspecies <- p.adjust(Pspecies, method = "BH")
+sigspecies <- adjPspecies[adjPspecies < 0.05]
+sigspecies <- sigspecies[order(sigspecies)]
+sigspeciesnames <- names(sigspecies)
+length(sigspecies)
+
+BD1 <- output_all$day1
+Chimp_ref_BD1 <- BD1
+Human_ref_BD1 <- BD1
+BD1_comp <- cbind(Chimp_ref_BD1, Human_ref_BD1)
+cor(BD1_comp)
+names(BD1) <- rownames(output_all)
+BD1 <- BD1[order(BD1)]
+PBD1 <- pv_list[,3]
+adjPBD1 <- p.adjust(PBD1, method = "BH")
+sigBD1 <- adjPBD1[adjPBD1 < 0.05]
+sigBD1 <- sigBD1[order(sigBD1)]
+sigBD1names <- names(sigBD1)
+length(sigBD1)
+
+BD2 <- output_all$day2
+names(BD2) <- rownames(output_all)
+BD2 <- BD2[order(BD2)]
+PBD2 <- pv_list[,4]
+adjPBD2 <- p.adjust(PBD2, method = "BH")
+sigBD2 <- adjPBD2[adjPBD2 < 0.05]
+sigBD2 <- sigBD2[order(sigBD2)]
+sigBD2names <- names(sigBD2)
+length(sigBD2)
+
+
+BD3 <- output_all$day3
+names(BD3) <- rownames(output_all)
+BD3 <- BD3[order(BD3)]
+PBD3 <- pv_list[,5]
+adjPBD3 <- p.adjust(PBD3, method = "BH")
+sigBD3 <- adjPBD1[adjPBD3 < 0.05]
+sigBD3 <- sigBD3[order(sigBD3)]
+sigBD3names <- names(sigBD3)
+length(sigBD3)
+
+BspeciesD1 <- output_all$speciesH.day1
+names(BspeciesD1) <- rownames(output_all)
+BspeciesD1 <- BspeciesD1[order(BspeciesD1)]
+Pspecies1 <- pv_list[,6]
+adjPspecies1 <- p.adjust(Pspecies1, method = "BH")
+sigspecies1 <- adjPspecies1[adjPspecies1 < 0.05]
+sigspecies1 <- sigspecies1[order(sigspecies1)]
+sigspecies1names <- names(sigspecies1)
+length(sigspecies1)
+
+BspeciesD2 <- output_all$speciesH.day2
+names(BspeciesD2) <- rownames(output_all)
+BspeciesD2 <- BspeciesD2[order(BspeciesD2)]
+Pspecies2 <- pv_list[,7]
+adjPspecies2 <- p.adjust(Pspecies2, method = "BH")
+sigspecies2 <- adjPspecies2[adjPspecies2 < 0.05]
+sigspecies2 <- sigspecies2[order(sigspecies2)]
+sigspecies2names <- names(sigspecies2)
+length(sigspecies2)
+
+BspeciesD3 <- output_all$speciesH.day3
+names(BspeciesD3) <- rownames(output_all)
+BspeciesD3 <- BspeciesD3[order(BspeciesD3)]
+Pspecies3 <- pv_list[,8]
+adjPspecies3 <- p.adjust(Pspecies3, method = "BH")
+sigspecies3 <- adjPspecies3[adjPspecies3 < 0.05]
+sigspecies3 <- sigspecies3[order(sigspecies3)]
+sigspecies3names <- names(sigspecies3)
+length(sigspecies3)
+
+
+sig3 <- dat_cpm_trimmed[sigspecies3names,]
+for (i in 1:10) {
+play <- sig3[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig3)[i]) + ylab("expression"))
+}
+sig2 <- dat_cpm_trimmed[sigspecies2names,]
+for (i in 1:10) {
+play <- sig2[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig2)[i])+ ylab("expression"))
+}
+sig1 <- dat_cpm_trimmed[sigspecies1names,]
+for (i in 1:10) {
+play <- sig1[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig1)[i])+ ylab("expression"))
+}
+
+sigspecies <- dat_cpm_trimmed[sigspeciesnames,]
+for (i in 1:10) {
+play <- sigspecies[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sigspecies)[i])+ ylab("expression"))
+}
+
+sigD3 <- dat_cpm_trimmed[sigBD1names,]
+for (i in 1:10) {
+play <- sigD3[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sigD3)[i])+ ylab("expression"))
+}
+sigD2 <- dat_cpm_trimmed[sigBD2names,]
+for (i in 1:10) {
+play <- sigD2[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sigD2)[i])+ ylab("expression"))
+}
+sigD1 <- dat_cpm_trimmed[sigBD1names,]
+for (i in 1:10) {
+play <- sigD1[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sigD1)[i])+ ylab("expression"))
+}
+
+venn(list(d1=sigBD1names, d2=sigBD2names, d3=sigBD3names))
+venn(list(spd1=sigspecies1names, spd2=sigspecies2names, spd3=sigspecies3names))
+par(mfrow = c(1,3)) 
+venn(list(spd1=sigspecies1names, d1=sigBD1names))
+venn(list(spd2=sigspecies2names, d2=sigBD2names))
+venn(list(spd3=sigspecies3names, d3=sigBD2names))
+
+par(mfrow = c(1,1)) 
+length_days <- c(length(sigBD1names), length(sigBD2names), length(sigBD3names))
+length_intrxn <- c(length(sigspecies1names), length(sigspecies2names), length(sigspecies3names))
+meets1 <- 
+length_both <- rbind(length_days, length_intrxn)
+colnames(length_both)<- c("day 1", "day2", "day3")
+barplot(length_both, col=c("darkblue", "red"), legend=rownames(length_both))
+
+Betas <- cbind(Bspecies, BD1, BD2, BD3, BspeciesD1, BspeciesD2, BspeciesD3)
+head(Betas)
+rownames(Betas) <- rownames(output_all)
+rownames(Betas)
+heatmap(Betas)
+hist(Bspecies)
+hist(BD1)
+hist(BD2)
+hist(BD3)
+hist(BspeciesD1)
+hist(BspeciesD2)
+hist(BspeciesD3)
+
+for (coef in colnames(cont_matrix)) {
+  stats_list[[coef]] <- topTable(fit2, coef = coef, number = nrow(counts),
+                                 sort.by = "none")
+}
+stats_list <- llply(stats_list, function(x) cbind(gene = rownames(x), x))
+stats <- ldply(stats_list, .id = "test")
+stats$gene <- as.character(stats$gene)
+
+
+#design <- model.matrix(~0+ mymodel)
+#colnames(design) <- levels(mymodel)
+#mymodel <- data.frame(day,species)
+m <- factor(paste(species, day, sep="."))
+m
+species
+design <- model.matrix(~ day + species + m)
+
+design
+
+#cont_matrix<-makeContrasts(D1 = mH.1-mC.1, D2 = mH.2-mC.2, D3 = mH.3-mC.3, levels##=design)
+
+y <- DGEList(both_minus)
+y <- calcNormFactors(y)
+v <- voom(y, design)
+fit <- lmFit(v, design)
+#fit2 <- contrasts.fit(fit, cont_matrix)
+fit2 <- eBayes(fit)
+stats_list <- list()
+pv_list <- fit2$p.value
+
+#output_all_0 <- topTable(fit2, coef="D0", number=20000, sort.by="none")
+#output_all_1 <- topTable(fit2, coef="D1", number=20000, sort.by="none")
+#output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
+#output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
+head(output_all_0)
+
+dfs <- data.frame(output_all_0$logFC, output_all_1$logFC, output_all_2$logFC, output_all_3$logFC)
+dfs <- stack(dfs)
+head(dfs)
+plot(density((FC_all)))
+
+ggplot(dfs, aes(x=values)) + geom_density(aes(group=ind, color=ind))
+
+
+plot(density(output_all_3$logFC), density(output_all_2$logFC))
+ggplot(data=pcs, aes(x=pc2, y=pc3, color=day, shape=species, size=2)) +
+geom_density(mapping = NULL, data = NULL, stat = "density", position = "identity", ..., na.rm = FALSE, show.legend = NA, inherit.aes = TRUE)
+
+###Find Not significant genes###
+notsig0 <- output_all_0[(output_all_0$adj.P.Val)>0.01,]
+head(notsig0)
+dim(notsig0)
+notsig1 <- output_all_1[(output_all_1$adj.P.Val)>0.01,]
+notsig2 <- output_all_2[(output_all_2$adj.P.Val)>0.01,]
+notsig3 <- output_all_3[(output_all_3$adj.P.Val)>0.01,]
+dim(notsig1)
+dim(notsig2)
+dim(notsig3)
+notsig_any <- intersect(intersect(intersect(rownames(notsig0), rownames(notsig1)), rownames(notsig2)), rownames(notsig3))
+Number_notsig <- length(notsig_any)
+
+#pv_list_raw <- output_all[,4, drop=FALSE]
+#pv_list_adj <- output_all[,5, drop=FALSE]
+
+output_D0 <- topTable(fit2, coef = "D0", number=20000, p.value=.01) #default adjust method is BH
+output_D1 <- topTable(fit2, coef = "D1", number=20000, p.value=.01) 
+output_D2 <- topTable(fit2, coef = "D2", number=20000, p.value=.01) 
+output_D3 <- topTable(fit2, coef = "D3", number=20000, p.value=.01) 
+
+output_D0 <- output_all_0[(output_all_0$adj.P.Val)<0.01,]
+output_D1 <- output_all_1[(output_all_1$adj.P.Val)<0.01,]
+output_D2 <- output_all_2[(output_all_2$adj.P.Val)<0.01,] 
+output_D3 <- output_all_3[(output_all_3$adj.P.Val)<0.01,]
+
+head(output_D0)
+length(output_D0$adj.P.Val)
+head(output_D1)
+length(output_D1$adj.P.Val)
+head(output_D2)
+length(output_D2$adj.P.Val)
+head(output_D3)
+length(output_D3$adj.P.Val)
+
+#Find significant genes
+sig_d0 <- rownames(output_D0)
+sig_d1 <- rownames(output_D1)
+sig_d2 <- rownames(output_D2)
+sig_d3 <- rownames(output_D3)
+
+Number_d0 <- length(sig_d0)
+Number_d1 <- length(sig_d1)
+Number_d2 <- length(sig_d2)
+Number_d3 <- length(sig_d3)
+
+#Find significant genes only in one day
+sig_d1_only <- sig_d1[!(sig_d1 %in% sig_d0)]
+sig_d1_only <- sig_d1_only[!(sig_d1_only %in% sig_d2)]
+sig_d1_only <- sig_d1_only[!(sig_d1_only %in% sig_d3)]
+
+#Find significant genes only in one day
+sig_d3_only <- sig_d3[!(sig_d3 %in% sig_d0)]
+sig_d3_only <- sig_d3_only[!(sig_d3_only %in% sig_d2)]
+sig_d3_only <- sig_d3_only[!(sig_d3_only %in% sig_d1)]
+
+#Find significant genes only in one day
+sig_d0_only <- sig_d0[!(sig_d0 %in% sig_d1)]
+sig_d0_only <- sig_d0_only[!(sig_d0_only %in% sig_d2)]
+sig_d0_only <- sig_d0_only[!(sig_d0_only %in% sig_d3)]
+
+#Find significant genes only in one day
+sig_d2_only <- sig_d2[!(sig_d2 %in% sig_d0)]
+sig_d2_only <- sig_d2_only[!(sig_d2_only %in% sig_d3)]
+sig_d2_only <- sig_d2_only[!(sig_d2_only %in% sig_d1)]
+
+#Find significant genes in all days
+sig_all <- sig_d2[(sig_d2 %in% sig_d0)]
+length(sig_all)
+sig_all <- sig_all[(sig_all %in% sig_d3)]
+length(sig_all)
+sig_all <- sig_all[(sig_all %in% sig_d1)]
+
+#Find significant genes arising at a given day
+sig_d0_arise <- sig_d0
+
+sig_d1_arise <- sig_d1[!(sig_d1 %in% sig_d0)]
+
+sig_d2_arise <- sig_d2[!(sig_d2 %in% sig_d0)]
+sig_d2_arise <- sig_d2_arise[!(sig_d2_arise %in% sig_d1)]
+
+sig_d3_arise <- sig_d3_only
+
+dfs <- data.frame(output_D0$logFC, output_D1$logFC, output_D2$logFC, output_D3$logFC)
+dfs <- stack(dfs)
+head(dfs)
+plot(density((FC_all)))
+
+ggplot(dfs, aes(x=values)) + geom_density(aes(group=ind, color=ind))
+
+#result <- decideTests(fit2)
+#result
+
+###Plot nonsignificant genes###
+notsig <- dat_cpm_trimmed[notsig_any,]
+#notsig <- data.frame(notsig)
+dim(notsig)
+head(notsig)
+notsigex <- notsig[rowMeans(notsig)>2,]
+dim(notsigex)
+#notsighc <- cbind(rowMeans(notsig[,1:19]), rowMeans(notsig[,20:43]))
+#colnames(notsighc) <- c("Human", "Chimp")
+#head(notsighc)
+for (i in 30:50) {
+play <- notsigex[i,]
+playdf <- data.frame(play,day,species)
+print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(notsigex)[i]))
+}
+
+###Plot significant genes###
+sig0 <- dat_cpm_trimmed[sig_d0,]
+sig1 <- dat_cpm_trimmed[sig_d1,]
+sig2 <- dat_cpm_trimmed[sig_d2,]
+sig3 <- dat_cpm_trimmed[sig_d3,]
+
+sig0ex <- sig0[rowMeans(sig0ex)>2,]
+for (i in 1:10) {
+play <- sig0ex[i,]
+playdf <- data.frame(play,day,species)
+print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig0ex)[i]))
+}
+
+sig1_only <- dat_cpm_trimmed[sig_d1_only,]
+sig1ex <- sig1_only[rowMeans(sig1_only)>2,]
+for (i in 1:10) {
+play <- sig1ex[i,]
+playdf <- data.frame(play,day,species)
+print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig1ex)[i]))
+}
+
+sig3_only <- dat_cpm_trimmed[sig_d3_only,]
+sig3ex <- sig3_only[rowMeans(sig3_only)>2,]
+for (i in 1:10) {
+play <- sig3ex[i,]
+playdf <- data.frame(play,day,species)
+print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig3ex)[i]))
+}
+
+sig_all_dat <- dat_cpm_trimmed[sig_all,]
+sig_all_ex <- sig_all_dat[rowMeans(sig_all_dat)>2,]
+for (i in 1:20) {
+play <- sig_all_ex[i,]
+playdf <- data.frame(play,day,species)
+print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig_all_x)[i]))
+}
+for (i in 1:20) {
+play <- sig_all_ex[i,]
+playdf <- data.frame(play,day,species)
+print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig_all_ex)[i]))
+}
+head(playdf)
+###Values###
+Number_notsig #844
+Number_d0 #2811
+Number_d1 #1486
+Number_d2 #1928
+Number_d3 #2328
+genesxsamples #14946 x 43
+
+
+length(sig_d0_only)
+length(sig_d1_only)
+length(sig_d2_only)
+length(sig_d3_only)
+
+length(sig_all)
+
+length(sig_d0_arise)
+length(sig_d1_arise)
+length(sig_d2_arise)
+length(sig_d3_arise)
+
+#table of all
+all_genes <- rownames(dat_cpm_trimmed)
+n <- max(length(sigBD1names), length(sigBD2names), length(sigBD3names), length(sigspeciesnames), length(sigspecies1names), length(sigspecies2names), length(sigspecies3names), length(all_genes))
+length(sigBD1names) <- n                      
+length(sigBD2names) <- n
+length(sigBD3names) <- n
+length(sigspeciesnames) <- n
+length(sigspecies1names) <- n
+length(sigspecies2names) <- n
+length(sigspecies3names) <- n
+length(all_genes) <- n
+
+sig_collect <- cbind(sigBD1names, sigBD2names, sigBD3names, sigspeciesnames, sigspecies1names, sigspecies2names, sigspecies3names, all_genes)
+write.csv(sig_collect, file="sigcollect.txt")
