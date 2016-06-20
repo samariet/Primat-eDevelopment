@@ -1,6 +1,7 @@
 
 ###Setup###
-setwd("~/Lab/Primate Development/Data/Run 2")
+#setwd("~/Lab/Primate Development/Data/Run 2")
+setwd("~/Documents/Primat-eDevelopment")
 library("limma")
 library("edgeR")
 library("plyr")
@@ -13,6 +14,7 @@ library("gridExtra")
 library("car")
 library("ggfortify")
 library(gplots)
+library(statmod)
 library(RColorBrewer)
 pal <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Set2"), brewer.pal(12, "Set3"))
 #library("ggbiplot")
@@ -145,7 +147,7 @@ text(pca$x, labels=samplenames)
 
 ###Heatmaps###
 #Do correlation- can specify which type of correlation to perform
-cors <- cor(dat_cpm_trimmed, method="pearson", use="pairwise.complete.obs")
+cors <- cor(dat_cpm_trimmed, method="spearman", use="pairwise.complete.obs")
 
 #Set Labels for your axes
 labels <- sample_names
@@ -158,11 +160,13 @@ dev.off()
 colors <- colorRampPalette(c(brewer.pal(9, "Blues")[1],brewer.pal(9, "Blues")[9]))(100)
 
 #Call the function (basic code)
-heatmap.2( cors, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white")
+heatmap.2(cors, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white")
 
 #Fancy labeling and coloring 
 
 heatmap.2( cors, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white", labCol=labels, ColSideColors=pal[as.integer(as.factor(BS_seq_info_two[ ,2]))], RowSideColors=pal[10:13][as.integer(as.factor(BS_seq_info_two[ ,3]))], cexCol = 1.5)
+
+heatmap.2(dat_cpm_trimmed, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white", labCol=labels, ColSideColors=pal[as.integer(as.factor(BS_seq_info_two[ ,2]))], RowSideColors=pal[10:13][as.integer(as.factor(BS_seq_info_two[ ,3]))], cexCol = 1.5)
 
 
 ### Variance ###
@@ -222,8 +226,8 @@ means <- c(m0h, m1h, m2h, m3h, m0c, m1c, m2c, m3c)
 plot(means)
 
 ###Linear Model###
-for i in length()
-lmfit <- lm(dat_cpm_trimmed[i,] = species + day)
+#for i in length()
+#lmfit <- lm(dat_cpm_trimmed[i,] = species + day)
 
 ###Limma###
 dim(both_minus)
@@ -233,11 +237,7 @@ day <- factor(day)
 
 #contrasts(species) <- contr.sum(2)
 #contrasts(day) <- contr.sum(4)
-m <- factor(paste(species, day, sep="."))
-m
-day
-md <- factor(c(day), levels="C.0")
-md
+
 design <- model.matrix(~species+day+species*day)
 design
 
@@ -250,7 +250,7 @@ fit <- lmFit(v, design)
 fit2 <- eBayes(fit)
 stats_list <- list()
 pv_list <- fit2$p.value
-output_all <- topTable(fit2, number=20000, sort.by="none")
+output_all <- topTable(fit2, number=20000, sort.by="none")  
 #output_all_1 <- topTable(fit2, coef="D1", number=20000, sort.by="none")
 #output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
 #output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
@@ -430,25 +430,27 @@ stats$gene <- as.character(stats$gene)
 m <- factor(paste(species, day, sep="."))
 m
 species
-design <- model.matrix(~ day + species + m)
-
+design <- model.matrix(~ 0+m)
+#colnames(design) <- levels(m)
 design
 
-#cont_matrix<-makeContrasts(D1 = mH.1-mC.1, D2 = mH.2-mC.2, D3 = mH.3-mC.3, levels##=design)
+corfit <- duplicateCorrelation(both_minus,design,block=line)
+
+cont_matrix<-makeContrasts(D0=mH.0-mC.0, D1 = mH.1-mC.1, D2 = mH.2-mC.2, D3 = mH.3-mC.3, levels=design)
 
 y <- DGEList(both_minus)
 y <- calcNormFactors(y)
 v <- voom(y, design)
-fit <- lmFit(v, design)
-#fit2 <- contrasts.fit(fit, cont_matrix)
-fit2 <- eBayes(fit)
+fit <- lmFit(v, design, block=line, correlation=corfit$consensus)
+fit2 <- contrasts.fit(fit, cont_matrix)
+fit2 <- eBayes(fit2)
 stats_list <- list()
 pv_list <- fit2$p.value
 
-#output_all_0 <- topTable(fit2, coef="D0", number=20000, sort.by="none")
-#output_all_1 <- topTable(fit2, coef="D1", number=20000, sort.by="none")
-#output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
-#output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
+output_all_0 <- topTable(fit2, coef="D0", number=20000, sort.by="none")
+output_all_1 <- topTable(fit2, coef="D1", number=20000, sort.by="none")
+output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
+output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
 head(output_all_0)
 
 dfs <- data.frame(output_all_0$logFC, output_all_1$logFC, output_all_2$logFC, output_all_3$logFC)
@@ -579,7 +581,7 @@ sig1 <- dat_cpm_trimmed[sig_d1,]
 sig2 <- dat_cpm_trimmed[sig_d2,]
 sig3 <- dat_cpm_trimmed[sig_d3,]
 
-sig0ex <- sig0[rowMeans(sig0ex)>2,]
+sig0ex <- sig0[rowMeans(sig0)>2,]
 for (i in 1:10) {
 play <- sig0ex[i,]
 playdf <- data.frame(play,day,species)
@@ -620,6 +622,7 @@ print(playdf)
 print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig_all_ex)[i]))
 }
 head(playdf)
+
 ###Values###
 Number_notsig #844
 Number_d0 #2811
@@ -628,18 +631,39 @@ Number_d2 #1928
 Number_d3 #2328
 genesxsamples #14946 x 43
 
+sig_day0 <- Number_d0 #2811
+sig_day1 <- Number_d1 #1486
+sig_day2 <- Number_d2 #1928
+sig_day3 <- Number_d3 #2328
+always_sig <- length(sig_all)
 
-length(sig_d0_only)
-length(sig_d1_only)
-length(sig_d2_only)
-length(sig_d3_only)
+
+collect_total <- c(sig_day0, sig_day1, sig_day2, sig_day3, Number_notsig, always_sig)
+plot(collect_total, xaxt="n", xlab="day", ylab="number significant", main="Total Genes Significant in Each Day")
+axis(side=1, at=1:6, labels=c("sig_d0_total", "sig_d1_total", "sig_d2_total", "sig_d3_total", "never_sig", "always_sig"))
+
+
+
+sig_day0_only <- length(sig_d0_only)
+sig_day1_only <- length(sig_d1_only)
+sig_day2_only <- length(sig_d2_only)
+sig_day3_only <- length(sig_d3_only)
 
 length(sig_all)
+
+collect_only <- c(length(sig_d0_only), length(sig_d1_only), length(sig_d2_only), length(sig_d3_only))
+plot(collect_only, xaxt="n", xlab="day", ylab="number significant", main="Genes Significant Only in One Day")
+axis(side=1, at=1:4, labels=c("sig_d0_only", "sig_d1_only", "sig_d2_only", "sig_d3_only"))
 
 length(sig_d0_arise)
 length(sig_d1_arise)
 length(sig_d2_arise)
 length(sig_d3_arise)
+
+collect_arise <- c(length(sig_d0_arise), length(sig_d1_arise), length(sig_d2_arise), length(sig_d3_arise))
+
+plot(collect_arise, xaxt="n", xlab="day", ylab="number significant", main=" Significant Genes Arising by Day")
+axis(side=1, at=1:4, labels=c("sig_d0_arise", "sig_d1_arise", "sig_d2_arise", "sig_d3_arise"))
 
 #table of all
 all_genes <- rownames(dat_cpm_trimmed)
