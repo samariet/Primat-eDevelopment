@@ -144,6 +144,10 @@ text(pca$x, labels=samplenames)
 #plot(pca$x[,(2:4)], col=rnabatch)
 #text(pca$x[,(2:4)], labels=samplenames)
 
+### Calculate Pairwise Correlations ###
+
+pair_cor <- cor(dat_cpm_trimmed)
+pair_cor <- as.data.frame(pair_cor)
 
 ###Heatmaps###
 #Do correlation- can specify which type of correlation to perform
@@ -237,7 +241,6 @@ day <- factor(day)
 
 #contrasts(species) <- contr.sum(2)
 #contrasts(day) <- contr.sum(4)
-
 design <- model.matrix(~species+day+species*day)
 design
 
@@ -245,7 +248,8 @@ design
 y <- DGEList(both_minus)
 y <- calcNormFactors(y)
 v <- voom(y, design)
-fit <- lmFit(v, design)
+corfit <- duplicateCorrelation(both_minus,design,block=line)
+fit <- lmFit(v, design, block=line, correlation=corfit$consensus)
 #fit2 <- contrasts.fit(fit, cont_matrix)
 fit2 <- eBayes(fit)
 stats_list <- list()
@@ -501,10 +505,14 @@ head(output_D3)
 length(output_D3$adj.P.Val)
 
 #Find significant genes
+
 sig_d0 <- rownames(output_D0)
 sig_d1 <- rownames(output_D1)
 sig_d2 <- rownames(output_D2)
 sig_d3 <- rownames(output_D3)
+
+par(mfrow=c(1,1))
+venn(list(sig0 = sig_d0, sig1= sig_d1, sig2=sig_d2, sig3=sig_d3))
 
 Number_d0 <- length(sig_d0)
 Number_d1 <- length(sig_d1)
@@ -600,10 +608,10 @@ print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(f
 
 sig3_only <- dat_cpm_trimmed[sig_d3_only,]
 sig3ex <- sig3_only[rowMeans(sig3_only)>2,]
-for (i in 1:10) {
+for (i in 10:20) {
 play <- sig3ex[i,]
 playdf <- data.frame(play,day,species)
-print(playdf)
+#print(playdf)
 print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig3ex)[i]))
 }
 
@@ -622,6 +630,31 @@ print(playdf)
 print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig_all_ex)[i]))
 }
 head(playdf)
+
+###Specific Genes###
+expr_foxp2 <- dat_cpm_trimmed["ENSG00000128573", ]
+foxp2 <- data.frame(expr_foxp2,day,species)
+ggplot(data=foxp2, aes(x=day, y=expr_foxp2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("FOXP2")
+
+nrxn<- dat_cpm_trimmed["ENSG00000179915", ]
+nrxndf<- data.frame(nrxn,day,species)
+ggplot(data=nrxndf, aes(x=day, y=nrxn, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("NRXN1")
+
+pdx1<- dat_cpm_trimmed["ENSG00000164736", ]
+pdx1df<- data.frame(pdx1,day,species)
+ggplot(data=pdx1df, aes(x=day, y=pdx1, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("PDX1")
+
+sox2<- dat_cpm_trimmed["ENSG00000163508", ]
+sox2df<- data.frame(sox2,day,species)
+ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("EOMES")
+
+sox2<- dat_cpm_trimmed["ENSG00000121966", ]
+sox2df<- data.frame(sox2,day,species)
+ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("CXCR4")
+
+sox2<- dat_cpm_trimmed["ENSG00000157404", ]
+sox2df<- data.frame(sox2,day,species)
+ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("ckit")
 
 ###Values###
 Number_notsig #844
@@ -677,5 +710,31 @@ length(sigspecies2names) <- n
 length(sigspecies3names) <- n
 length(all_genes) <- n
 
+n <- max(length(sigBD1names), length(sigBD2names), length(sigBD3names), length(sigspeciesnames), length(sigspecies1names), length(sigspecies2names), length(sigspecies3names), length(all_genes))
+n2 <- max(length(sig_d0), length(sig_d1), length(sig_d2), length(sig_d3), length(sig_all), length(notsig_any))
+length(sigBD1names) <- n                      
+length(sigBD2names) <- n
+length(sigBD3names) <- n
+length(sigspeciesnames) <- n
+length(sigspecies1names) <- n
+length(sigspecies2names) <- n
+length(sigspecies3names) <- n
+length(all_genes) <- n
+length(sig_d0) <- n2
+length(sig_d1) <- n2
+length(sig_d2) <- n2
+length(sig_d3) <- n2
+length(sig_all) <- n2
+length(notsig_any) <- n2
+
+sig_collect2 <- cbind(sig_d0, sig_d1, sig_d2, sig_d3, sig_all, notsig_any)
+write.csv(sig_collect2, file="sigcollect2.txt")
+write.csv(all_genes, file="all_genes.txt", row.names=FALSE)
 sig_collect <- cbind(sigBD1names, sigBD2names, sigBD3names, sigspeciesnames, sigspecies1names, sigspecies2names, sigspecies3names, all_genes)
 write.csv(sig_collect, file="sigcollect.txt")
+
+sig_collect_arise <- cbind(sig_d0_arise, sig_d1_arise, sig_d2_arise, sig_d3_arise)
+write.csv (sig_collect_arise, file="sig_arise.txt")
+
+sig_collect_only <- cbind(sig_d0_only, sig_d1_only, sig_d2_only, sig_d3_only)
+write.csv(sig_collect_only, file="sig_only.txt")
