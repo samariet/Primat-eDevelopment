@@ -1,7 +1,7 @@
 
 ###Setup###
-#setwd("~/Lab/Primate Development/Data/Run 2")
-setwd("~/Documents/Primat-eDevelopment")
+setwd("~/Lab/Primate Development/Data/Run 2")
+#setwd("~/Documents/Primat-eDevelopment")
 library("limma")
 library("edgeR")
 library("plyr")
@@ -228,6 +228,7 @@ m3c <- mean(var_d3C)
 
 means <- c(m0h, m1h, m2h, m3h, m0c, m1c, m2c, m3c)
 plot(means)
+boxplot(var_d0H, var_d0C, var_d1H, var_d1C, var_d2H, var_d2C, var_d3H, var_d3C, ylim=c(0,4)) 
 
 ###Linear Model###
 #for i in length()
@@ -241,7 +242,7 @@ day <- factor(day)
 
 #contrasts(species) <- contr.sum(2)
 #contrasts(day) <- contr.sum(4)
-design <- model.matrix(~species+day+species*day)
+design <- model.matrix(~species+day+species:day)
 design
 
 #cont_matrix<-makeContrasts(D1=(day1, D2=(day2), D3=(day3), levels=design)
@@ -495,6 +496,14 @@ output_D1 <- output_all_1[(output_all_1$adj.P.Val)<0.01,]
 output_D2 <- output_all_2[(output_all_2$adj.P.Val)<0.01,] 
 output_D3 <- output_all_3[(output_all_3$adj.P.Val)<0.01,]
 
+mean_effect_D0 <- mean(output_all_0$logFC)
+mean_effect_D1 <- mean(output_all_1$logFC)
+mean_effect_D2 <- mean(output_all_2$logFC)
+mean_effect_D3 <- mean(output_all_3$logFC)
+
+mean_effects <- c(mean_effect_D0, mean_effect_D1, mean_effect_D2, mean_effect_D3)
+plot(mean_effects)
+
 head(output_D0)
 length(output_D0$adj.P.Val)
 head(output_D1)
@@ -698,6 +707,19 @@ collect_arise <- c(length(sig_d0_arise), length(sig_d1_arise), length(sig_d2_ari
 plot(collect_arise, xaxt="n", xlab="day", ylab="number significant", main=" Significant Genes Arising by Day")
 axis(side=1, at=1:4, labels=c("sig_d0_arise", "sig_d1_arise", "sig_d2_arise", "sig_d3_arise"))
 
+plot(mean_effects, xaxt="n", xlab="day", ylab="mean effect size", main=" Effect Size by Day", pch=16)
+axis(side=1, at=1:4, labels=c("Day 0", "Day 1", "Day 2", "Day 3"))
+
+
+means <- c(m0h, m0c, m1h, m1c, m2h, m2c, m3h,m3c)
+plot(means, xaxt="n", ylab="mean variance", xlab="timepoint",pch=16, bg="blue", col=c("cadetblue4", "hotpink", "cadetblue4", "hotpink", "cadetblue4", "hotpink", "cadetblue4", "hotpink"), main="Variance by Day")
+axis(side=1, at=c(1.5, 3.5, 5.5, 7.5), labels=c("Day 0", "Day 1", "Day 2", "Day 3"))
+ 
+legend(7,1, c("human", "chimp"), col = c("cadetblue4", "hotpink"),
+       text.col = c("cadetblue4", "hotpink"),  pch = c(16,16),
+       merge = TRUE, bg = "gray90")
+
+boxplot(var_d0H, var_d0C, var_d1H, var_d1C, var_d2H, var_d2C, var_d3H, var_d3C, ylim=c(0,4))
 #table of all
 all_genes <- rownames(dat_cpm_trimmed)
 n <- max(length(sigBD1names), length(sigBD2names), length(sigBD3names), length(sigspeciesnames), length(sigspecies1names), length(sigspecies2names), length(sigspecies3names), length(all_genes))
