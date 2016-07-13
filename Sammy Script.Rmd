@@ -208,6 +208,24 @@ cormotif_day <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
 plotIC(cormotif_day)
 plotMotif(cormotif_day)
 
+gene_prob_day <- cormotif_day$bestmotif$p.post
+rownames(gene_prob_day) <- rownames(dat_cpm_trimmed)
+
+prob_sp_1 <- rownames(gene_prob_day[(gene_prob_day[,1] < 0.5 & gene_prob_day[,2] <0.5 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] <0.5),])
+length(prob_sp_1)
+
+prob_sp_2 <- rownames(gene_prob_day[(gene_prob_day[,1] >0.9 & gene_prob_day[,2] >0.9 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] <0.5),])
+length(prob_sp_2)
+
+prob_sp_3 <- rownames(gene_prob_day[(gene_prob_day[,1] >0.9 & gene_prob_day[,2] >0.9 & gene_prob_day[,3] > 0.9 & gene_prob_day[,4] > 0.9),])
+length(prob_sp_3)
+
+prob_sp_4 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5& gene_prob_day[,2] <0.5 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] >0.9),])
+length(prob_sp_4)
+
+prob_sp_5 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5 & gene_prob_day[,2] <0.5 & gene_prob_day[,3] > 0.9 & gene_prob_day[,4] >0.9),])
+length(prob_sp_5)
+
 #differences during diffentiation
 set.seed(12345)
 cormotif_tran <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
@@ -234,6 +252,8 @@ plotMotif(cormotif_chimp)
 cormotif_human <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
                             compid = compid_human, K = 9:15)
                             
+gene_prob <- cormotif_human$bestmotif$p.post
+
 plotIC(cormotif_human)
 plotMotif(cormotif_human)
 
