@@ -12,10 +12,14 @@ library("RColorBrewer")
 library("VennDiagram")
 library("gridExtra")
 library("car")
+library("topGO")
+library("Cormotif")
 library("ggfortify")
 library(gplots)
 library(statmod)
+library(qtlcharts)
 library(RColorBrewer)
+library(ashr)
 pal <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Set2"), brewer.pal(12, "Set3"))
 #library("ggbiplot")
 
@@ -108,6 +112,12 @@ hist(dat_cpm_trimmed)
 joyce_table <- rbind(sample_features[,7], sample_features[,2], both)
 write.table(joyce_table, sep="\t", file="joyce_table.txt")
 
+#dat_means <- rowMeans(dat_cpm_trimmed)
+sarah <- t(apply(dat_cpm_trimmed, 1, scale, scale=FALSE, center=TRUE))
+colnames(sarah) <- colnames(dat_cpm_trimmed)
+sarah_table <- rbind(sample_features[,7], sample_features[,2], sarah)
+write.table(sarah_table, sep="\t", file="sarah_table.txt")
+
 ###PCA###
 pca <- prcomp(x = t(dat_cpm_trimmed), retx = TRUE, center = TRUE, scale = TRUE)
 #plot_pca <- ggplot( mapping = aes(x = PC1, y = PC2,
@@ -172,7 +182,62 @@ heatmap.2( cors, scale="none", col = colors, margins = c(12, 12), trace='none', 
 
 heatmap.2(dat_cpm_trimmed, scale="none", col = colors, margins = c(12, 12), trace='none', denscol="white", labCol=labels, ColSideColors=pal[as.integer(as.factor(BS_seq_info_two[ ,2]))], RowSideColors=pal[10:13][as.integer(as.factor(BS_seq_info_two[ ,3]))], cexCol = 1.5)
 
+###CorMotiff###
+# Create a factor for the experiments, with the levels ordered such that
+# as.numeric converts them to numbers in a defined manner
+group_fac <- factor(paste(species, day, sep = "."),
+                    levels = c("C.0", "C.1", "C.2", "C.3",
+                               "H.0", "H.1", "H.2", "H.3"))
+groupid <- as.numeric(group_fac)
+# Conditions to compare:
+# day0, day1, day2, day3, 
+compid_day <- data.frame(c1 = c(1, 2, 3, 4),
+                         c2 = c(5, 6, 7, 8))
+compid_tran <- data.frame(c1 = c(1, 2, 3, 5, 6, 7),
+                          c2 = c(2, 3, 4, 6, 7, 8))
+compid_all <- data.frame(c1 = c(1, 2, 3, 4, 1, 2, 3, 5, 6, 7),
+                         c2 = c(5, 6, 7, 8, 2, 3, 4, 6, 7, 8))
+                         
+compid_chimp <- data.frame(c1=c(1,2,3), c2=c(2,3,4))                         
+compid_human <- data.frame(c1=c(5,6,7), c2=c(6,7,8))
 
+#interspecies differences at each day
+set.seed(12345)
+cormotif_day <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
+                        compid = compid_day, K = 3:5)
+plotIC(cormotif_day)
+plotMotif(cormotif_day)
+
+#differences during diffentiation
+set.seed(12345)
+cormotif_tran <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
+                        compid = compid_tran, K = 5:10)
+plotIC(cormotif_tran)
+plotMotif(cormotif_tran)
+
+#combined interspecies and diffentiation differences
+set.seed(12345)
+cormotif_all <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
+                            compid = compid_all, K = 9:15)
+                            
+plotIC(cormotif_all)
+plotMotif(cormotif_all)
+
+#diff during diff sep species
+set.seed(12345)
+cormotif_chimp <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
+                            compid = compid_chimp, K = 9:15)
+                            
+plotIC(cormotif_chimp)
+plotMotif(cormotif_chimp)
+
+cormotif_human <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
+                            compid = compid_human, K = 9:15)
+                            
+plotIC(cormotif_human)
+plotMotif(cormotif_human)
+
+sessionInfo()
 ### Variance ###
 day <- as.factor(day)
 both <- dat_cpm_trimmed
@@ -233,6 +298,15 @@ boxplot(var_d0H, var_d0C, var_d1H, var_d1C, var_d2H, var_d2C, var_d3H, var_d3C, 
 ###Linear Model###
 #for i in length()
 #lmfit <- lm(dat_cpm_trimmed[i,] = species + day)
+
+
+### Iplot ###
+
+iplotCorr(substitute(dat_cpm_trimmed))
+iplotCorr(as.character(expr))
+
+### Ash ###
+
 
 ###Limma###
 dim(both_minus)
