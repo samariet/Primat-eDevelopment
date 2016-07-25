@@ -13,6 +13,7 @@ library("VennDiagram")
 library("gridExtra")
 library("car")
 library("topGO")
+library("rowr")
 library("Cormotif")
 library("ggfortify")
 library(gplots)
@@ -226,10 +227,16 @@ length(prob_sp_4)
 prob_sp_5 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5 & gene_prob_day[,2] <0.5 & gene_prob_day[,3] > 0.9 & gene_prob_day[,4] >0.9),])
 length(prob_sp_5)
 
+cor_collect <- cbind.fill(prob_sp_1, prob_sp_2, prob_sp_3, prob_sp_4, prob_sp_5, fill=NA)
+write.table(cor_collect, file = "corcollect.txt")
+
+
 #differences during diffentiation
 set.seed(12345)
 cormotif_tran <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
                         compid = compid_tran, K = 5:10)
+gene_prob_tran <- cormotif_tran$bestmotif$p.post
+rownames(gene_prob_tran) <- rownames(dat_cpm_trimmed)
 plotIC(cormotif_tran)
 plotMotif(cormotif_tran)
 
@@ -237,7 +244,9 @@ plotMotif(cormotif_tran)
 set.seed(12345)
 cormotif_all <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
                             compid = compid_all, K = 9:15)
-                            
+
+gene_prob_all <- cormotif_all$bestmotif$p.post
+rownames(gene_prob_all) <- rownames(dat_cpm_trimmed)                            
 plotIC(cormotif_all)
 plotMotif(cormotif_all)
 
@@ -245,15 +254,16 @@ plotMotif(cormotif_all)
 set.seed(12345)
 cormotif_chimp <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
                             compid = compid_chimp, K = 9:15)
-                            
+gene_prob_chimp <- cormotif_chimp$bestmotif$p.post
+rownames(gene_prob_chimp) <- rownames(dat_cpm_trimmed)                            
 plotIC(cormotif_chimp)
 plotMotif(cormotif_chimp)
 
 cormotif_human <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
                             compid = compid_human, K = 9:15)
                             
-gene_prob <- cormotif_human$bestmotif$p.post
-
+gene_prob_human <- cormotif_human$bestmotif$p.post
+rownames(gene_prob_human) <- rownames(dat_cpm_trimmed)
 plotIC(cormotif_human)
 plotMotif(cormotif_human)
 
@@ -734,6 +744,55 @@ print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(f
 }
 head(playdf)
 
+prob_sp_1 <- dat_cpm_trimmed[prob_sp_1,]
+prob_sp_1<- prob_sp_1[rowMeans(prob_sp_1)>2,]
+for (i in 10:20) {
+play <- prob_sp_1[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(prob_sp_1)[i]))
+}
+
+
+prob_sp_3 <- dat_cpm_trimmed[prob_sp_3,]
+prob_sp_3<- prob_sp3[rowMeans(prob_sp_3)>2,]
+for (i in 10:20) {
+play <- prob_sp_3[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(prob_sp_3)[i]))
+}
+
+
+prob_sp_2 <- dat_cpm_trimmed[prob_sp_2,]
+prob_sp_2<- prob_sp_2[rowMeans(prob_sp_2)>2,]
+for (i in 10:20) {
+play <- prob_sp_2[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(prob_sp_2)[i]))
+}
+
+
+prob_sp_4 <- dat_cpm_trimmed[prob_sp_4,]
+prob_sp_4<- prob_sp_4[rowMeans(prob_sp_4)>2,]
+for (i in 10:20) {
+play <- prob_sp_4[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(prob_sp_4)[i]))
+}
+
+
+prob_sp_5 <- dat_cpm_trimmed[prob_sp_5,]
+prob_sp_5<- prob_sp_5[rowMeans(prob_sp_5)>2,]
+for (i in 10:20) {
+play <- prob_sp_5[i,]
+playdf <- data.frame(play,day,species)
+#print(playdf)
+print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(prob_sp_5)[i]))
+}
+
 ###Specific Genes###
 expr_foxp2 <- dat_cpm_trimmed["ENSG00000128573", ]
 foxp2 <- data.frame(expr_foxp2,day,species)
@@ -854,3 +913,5 @@ write.csv (sig_collect_arise, file="sig_arise.txt")
 
 sig_collect_only <- cbind(sig_d0_only, sig_d1_only, sig_d2_only, sig_d3_only)
 write.csv(sig_collect_only, file="sig_only.txt")
+
+
