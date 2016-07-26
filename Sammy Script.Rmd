@@ -1,7 +1,7 @@
 
 ###Setup###
-setwd("~/Lab/Primate Development/Data/Run 2")
-#setwd("~/Documents/Primat-eDevelopment")
+#setwd("~/Lab/Primate Development/Data/Run 2")
+setwd("~/Documents/Primat-eDevelopment")
 library("limma")
 library("edgeR")
 library("plyr")
@@ -228,8 +228,13 @@ prob_sp_5 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5 & gene_prob_day[,2] 
 length(prob_sp_5)
 
 cor_collect <- cbind.fill(prob_sp_1, prob_sp_2, prob_sp_3, prob_sp_4, prob_sp_5, fill=NA)
-write.table(cor_collect, file = "corcollect.txt")
 
+write.table(cor_collect, file = "corcollect.txt")
+write.table(prob_sp_1, file="pr1.txt")
+write.table(prob_sp_2, file="pr2.txt")
+write.table(prob_sp_3, file="pr3.txt")
+write.table(prob_sp_4, file="pr4.txt")
+write.table(prob_sp_5, file="pr5.txt")
 
 #differences during diffentiation
 set.seed(12345)
@@ -563,8 +568,12 @@ output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
 head(output_all_0)
 
 dfs <- data.frame(output_all_0$logFC, output_all_1$logFC, output_all_2$logFC, output_all_3$logFC)
+for(i in 1:nrow(df.norm)){df.norm[i,]=df.norm[i,]/max(abs(df.norm[i,]))}
 dfs <- stack(dfs)
+colnames(df.norm)=c("d1","d2","d3","d4")
+heatmap(as.matrix(df.norm[1:1000,]))
 head(dfs)
+df.norm.hclust=hclust(as.matrix(df.norm[1:1000,]))
 plot(density((FC_all)))
 
 ggplot(dfs, aes(x=values)) + geom_density(aes(group=ind, color=ind))
@@ -600,10 +609,10 @@ output_D1 <- output_all_1[(output_all_1$adj.P.Val)<0.01,]
 output_D2 <- output_all_2[(output_all_2$adj.P.Val)<0.01,] 
 output_D3 <- output_all_3[(output_all_3$adj.P.Val)<0.01,]
 
-mean_effect_D0 <- mean(output_all_0$logFC)
-mean_effect_D1 <- mean(output_all_1$logFC)
-mean_effect_D2 <- mean(output_all_2$logFC)
-mean_effect_D3 <- mean(output_all_3$logFC)
+mean_effect_D0 <- mean(abs(output_all_0$logFC))
+mean_effect_D1 <- mean(abs(output_all_1$logFC))
+mean_effect_D2 <- mean(abs(output_all_2$logFC))
+mean_effect_D3 <- mean(abs(output_all_3$logFC))
 
 mean_effects <- c(mean_effect_D0, mean_effect_D1, mean_effect_D2, mean_effect_D3)
 plot(mean_effects)
@@ -797,6 +806,10 @@ print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(f
 expr_foxp2 <- dat_cpm_trimmed["ENSG00000128573", ]
 foxp2 <- data.frame(expr_foxp2,day,species)
 ggplot(data=foxp2, aes(x=day, y=expr_foxp2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("FOXP2")
+
+expr_apoe <- dat_cpm_trimmed["ENSG00000130203", ]
+apoe <- data.frame(expr_apoe,day,species)
+ggplot(data=apoe, aes(x=day, y=expr_apoe, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("APOE")
 
 nrxn<- dat_cpm_trimmed["ENSG00000179915", ]
 nrxndf<- data.frame(nrxn,day,species)
