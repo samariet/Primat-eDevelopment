@@ -16,9 +16,13 @@ library("topGO")
 library("rowr")
 library("Cormotif")
 library("ggfortify")
+library("dplyr")
+library("tidyr")
+library("ggplot2")
 library(gplots)
 library(statmod)
 library(qtlcharts)
+library(mygene)
 library(RColorBrewer)
 library(ashr)
 pal <- c(brewer.pal(9, "Set1"), brewer.pal(8, "Set2"), brewer.pal(12, "Set3"))
@@ -98,6 +102,9 @@ all(is.finite(dat_cpm))
 hist(rowMeans(dat_cpm))
 hist(rowSums(dat_cpm))
 hist(dat_cpm)
+
+
+
 
 ###Remove lowly expressed genes ### WILL NEED TO ADJUST THIS SECTION DEPENDING ON REMOVED SAMPLES ####
 #expr_genes <- rowMeans(dat_cpm)>-2
@@ -210,31 +217,44 @@ plotIC(cormotif_day)
 plotMotif(cormotif_day)
 
 gene_prob_day <- cormotif_day$bestmotif$p.post
-rownames(gene_prob_day) <- rownames(dat_cpm_trimmed)
+
+ensembl <- useMart(host = "sep2013.archive.ensembl.org",
+                   biomart = "ENSEMBL_MART_ENSEMBL",
+                   dataset = "hsapiens_gene_ensembl")
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id",
+"hgnc_symbol"),values=rownames(gene_prob_day),mart= mart)
+gene_prob_day <- gene_prob_day[rownames(gene_prob_day) %in% gene_names[,1],]
+all(rownames(gene_prob_day) == gene_names[,1])
+rownames(gene_prob_day) <- gene_names[,2]
+
+#rownames(gene_prob_day) <- rownames(dat_cpm_trimmed)
 
 prob_sp_1 <- rownames(gene_prob_day[(gene_prob_day[,1] < 0.5 & gene_prob_day[,2] <0.5 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] <0.5),])
 length(prob_sp_1)
 
-prob_sp_2 <- rownames(gene_prob_day[(gene_prob_day[,1] >0.9 & gene_prob_day[,2] >0.9 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] <0.5),])
+prob_sp_2 <- rownames(gene_prob_day[(gene_prob_day[,1] >0.8 & gene_prob_day[,2] >0.8 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] <0.5),])
 length(prob_sp_2)
 
-prob_sp_3 <- rownames(gene_prob_day[(gene_prob_day[,1] >0.9 & gene_prob_day[,2] >0.9 & gene_prob_day[,3] > 0.9 & gene_prob_day[,4] > 0.9),])
+prob_sp_3 <- rownames(gene_prob_day[(gene_prob_day[,1] >0.8 & gene_prob_day[,2] >0.8 & gene_prob_day[,3] > 0.8 & gene_prob_day[,4] > 0.8),])
 length(prob_sp_3)
 
-prob_sp_4 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5& gene_prob_day[,2] <0.5 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] >0.9),])
+prob_sp_4 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5& gene_prob_day[,2] <0.5 & gene_prob_day[,3] <0.5 & gene_prob_day[,4] >0.8),])
 length(prob_sp_4)
 
-prob_sp_5 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5 & gene_prob_day[,2] <0.5 & gene_prob_day[,3] > 0.9 & gene_prob_day[,4] >0.9),])
+prob_sp_5 <- rownames(gene_prob_day[(gene_prob_day[,1] <0.5 & gene_prob_day[,2] <0.5 & gene_prob_day[,3] > 0.8 & gene_prob_day[,4] >0.8),])
 length(prob_sp_5)
 
 cor_collect <- cbind.fill(prob_sp_1, prob_sp_2, prob_sp_3, prob_sp_4, prob_sp_5, fill=NA)
 
+
 write.table(cor_collect, file = "corcollect.txt")
-write.table(prob_sp_1, file="pr1.txt")
-write.table(prob_sp_2, file="pr2.txt")
-write.table(prob_sp_3, file="pr3.txt")
-write.table(prob_sp_4, file="pr4.txt")
-write.table(prob_sp_5, file="pr5.txt")
+write.table(prob_sp_1, file="pr1.txt", row.names=FALSE)
+write.table(prob_sp_2, file="pr2.txt", row.names=FALSE)
+write.table(prob_sp_3, file="pr3.txt", row.names=FALSE)
+write.table(prob_sp_4, file="pr4.txt", row.names=FALSE)
+write.table(prob_sp_5, file="pr5.txt", row.names=FALSE)
+all_genes <- rownames(gene_prob_day)
+write.csv(all_genes, file="all_genes.txt", row.names=FALSE)
 
 #differences during diffentiation
 set.seed(12345)
