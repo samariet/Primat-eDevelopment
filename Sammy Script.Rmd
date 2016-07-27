@@ -96,7 +96,7 @@ barplot(bsh2[,1], names=bsh2[,2])
 
 ###CPM transformation###
 dat_cpm <- cpm(both_minus, log=TRUE)
-#dat_cpm <- cpm(both_minus, lib.size = colSums(both_minus) * calcNormFactors(both_minus),
+#dat_cpm <- cpm(both_minus, lib.size = colSums(both_minus) * #calcNormFactors(both_minus),
                   log = TRUE)
 #dat_cpm[mapply(is.infinite(dat_cpm))] <- -99999
 dat_cpm[mapply(is.infinite, dat_cpm)] <- NA
@@ -374,7 +374,12 @@ iplotCorr(as.character(expr))
 
 ### Pairwise Correlations ###
 
-pair_cor <- cor(dat_cpm)
+counts <- read.delim("endoderm-counts-filtered.txt")
+counts[1:10, 1:5]
+sample_features <- read.delim("samplefactors-filtered.txt", stringsAsFactors = FALSE)
+stopifnot(rownames(anno) == colnames(counts))
+
+pair_cor <- cor(counts)
 pair_cor <- as.data.frame(pair_cor)
 pair_cor$sample1 <- rownames(pair_cor)
 pair_cor_long <- gather(pair_cor, key = "sample2", value = "r", -sample1) %>%
@@ -408,11 +413,11 @@ for (i in 1:nrow(pair_cor_long)) {
     next
   }
   pair_cor_long$all[i] <- pair_cor_long$r[i]
-  if (pair_cor_long$species1[i] == "2" &
-      pair_cor_long$species2[i] == "2") {
+  if (pair_cor_long$species1[i] == "H" &
+      pair_cor_long$species2[i] == "H") {
     pair_cor_long$human[i] <- pair_cor_long$r[i]
-  } else if (pair_cor_long$species1[i] == "1" &
-             pair_cor_long$species2[i] == "1") {
+  } else if (pair_cor_long$species1[i] == "C" &
+             pair_cor_long$species2[i] == "C") {
     pair_cor_long$chimp[i] <- pair_cor_long$r[i]
   } else {
     pair_cor_long$cross[i] <- pair_cor_long$r[i]
@@ -532,12 +537,12 @@ length(sigspecies1)
 ensembl <- useMart(host = "sep2013.archive.ensembl.org",
                    biomart = "ENSEMBL_MART_ENSEMBL",
                    dataset = "hsapiens_gene_ensembl")
-gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id","hgnc_symbol"),values=rownames(output_all),mart= ensembl)
-output_all<- output_all[gene_names[,1] %in% rownames(output_all),]
-all(rownames(output_all) == gene_names[,1])
-rownames(output_all) == gene_names[,1]
-rownames(output_all) <- gene_names[,2]
-
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id","hgnc_symbol"),values=sigspecies1names,mart= ensembl)
+sigspd1names <- sigspecies1names[sigspecies1names %in% gene_names[,1]]
+all(sigspd1names == gene_names[,1])
+sigspd1names == gene_names[,1]
+sigspd1names <- gene_names[,2]
+write.table(sigspd1names, file="sigspd1names.txt")
 
 
 BspeciesD2 <- output_all$speciesH.day2
@@ -559,6 +564,17 @@ sigspecies3 <- adjPspecies3[adjPspecies3 < 0.05]
 sigspecies3 <- sigspecies3[order(sigspecies3)]
 sigspecies3names <- names(sigspecies3)
 length(sigspecies3)
+
+
+ensembl <- useMart(host = "sep2013.archive.ensembl.org",
+                   biomart = "ENSEMBL_MART_ENSEMBL",
+                   dataset = "hsapiens_gene_ensembl")
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id",
+"hgnc_symbol"),values=rownames(gene_prob_day),mart= mart)
+gene_prob_day <- gene_prob_day[rownames(gene_prob_day) %in% gene_names[,1],]
+all(rownames(gene_prob_day) == gene_names[,1])
+rownames(gene_prob_day) <- gene_names[,2]
+
 
 
 sig3 <- dat_cpm_trimmed[sigspecies3names,]
@@ -690,7 +706,7 @@ output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
 head(output_all_0)
 mean(abs(output_all_0$logFC))
 
-dfs <- data.frame(output_all_0$logFC, output_all_1$logFC, output_all_2$logFC, output_all_3$logFC)
+dfs <- data.frame(output_all_0$B, output_all_1$B, output_all_2$B, output_all_3$B)
 for(i in 1:nrow(df.norm)){df.norm[i,]=df.norm[i,]/max(abs(df.norm[i,]))}
 dfs <- stack(dfs)
 colnames(df.norm)=c("d1","d2","d3","d4")
@@ -699,7 +715,7 @@ head(dfs)
 df.norm.hclust=hclust(as.matrix(df.norm[1:1000,]))
 plot(density((FC_all)))
 
-effect_size_spday <- data.frame(ef=c(abs(output_all_0$logFC), abs(output_all_1$logFC), abs(output_all_2$logFC), abs(output_all_3$logFC)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_all_0$logFC), length(output_all_1$logFC), length(output_all_2$logFC), length(output_all_3$logFC))))
+effect_size_spday <- data.frame(ef=c(abs(output_all_0$B), abs(output_all_1$B), abs(output_all_2$B), abs(output_all_3$B)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_all_0$logFC), length(output_all_1$logFC), length(output_all_2$logFC), length(output_all_3$logFC))))
 
 ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,5))
 t.test(BspeciesD2,BspeciesD3)
@@ -737,6 +753,13 @@ mean_effect_D3 <- mean(abs(output_all_3$logFC))
 
 mean_effects <- c(mean_effect_D0, mean_effect_D1, mean_effect_D2, mean_effect_D3)
 plot(mean_effects)
+
+effect_size_spday <- data.frame(ef=c(abs(output_D0$logFC), abs(output_D1$logFC), abs(output_D2$logFC), abs(output_D3$logFC)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_D0$logFC), length(output_D1$logFC), length(output_D2$logFC), length(output_D3$logFC))))
+
+ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,5))
+t.test(BspeciesD2,BspeciesD3)
+
+
 
 head(output_D0)
 length(output_D0$adj.P.Val)
