@@ -8,6 +8,7 @@ library("plyr")
 library("ggplot2")
 theme_set(theme_bw(base_size = 16))
 library("biomaRt")
+library(colorfulVennPlot)
 library("RColorBrewer")
 library("VennDiagram")
 library("gridExtra")
@@ -95,6 +96,8 @@ barplot(bsh2[,1], names=bsh2[,2])
 
 ###CPM transformation###
 dat_cpm <- cpm(both_minus, log=TRUE)
+#dat_cpm <- cpm(both_minus, lib.size = colSums(both_minus) * calcNormFactors(both_minus),
+                  log = TRUE)
 #dat_cpm[mapply(is.infinite(dat_cpm))] <- -99999
 dat_cpm[mapply(is.infinite, dat_cpm)] <- NA
 #dat_cpm[!is.finite(dat_cpm)] <- NA
@@ -162,10 +165,7 @@ text(pca$x, labels=samplenames)
 #plot(pca$x[,(2:4)], col=rnabatch)
 #text(pca$x[,(2:4)], labels=samplenames)
 
-### Calculate Pairwise Correlations ###
 
-pair_cor <- cor(dat_cpm_trimmed)
-pair_cor <- as.data.frame(pair_cor)
 
 ###Heatmaps###
 #Do correlation- can specify which type of correlation to perform
@@ -278,14 +278,14 @@ plotMotif(cormotif_all)
 #diff during diff sep species
 set.seed(12345)
 cormotif_chimp <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
-                            compid = compid_chimp, K = 9:15)
+                            compid = compid_chimp, K = 5:15)
 gene_prob_chimp <- cormotif_chimp$bestmotif$p.post
 rownames(gene_prob_chimp) <- rownames(dat_cpm_trimmed)                            
 plotIC(cormotif_chimp)
 plotMotif(cormotif_chimp)
 
 cormotif_human <- cormotiffit(exprs = dat_cpm_trimmed, groupid = groupid,
-                            compid = compid_human, K = 9:15)
+                            compid = compid_human, K = 5:15)
                             
 gene_prob_human <- cormotif_human$bestmotif$p.post
 rownames(gene_prob_human) <- rownames(dat_cpm_trimmed)
@@ -350,6 +350,16 @@ means <- c(m0h, m1h, m2h, m3h, m0c, m1c, m2c, m3c)
 plot(means)
 boxplot(var_d0H, var_d0C, var_d1H, var_d1C, var_d2H, var_d2C, var_d3H, var_d3C, ylim=c(0,4)) 
 
+variance_humans <- data.frame(var=c(var_d0H, var_d1H, var_d2H, var_d3H), day = rep(c("D0","D1", "D2", "D3"), times =c(length(var_d0H), length(var_d1H), length(var_d2H), length(var_d3H))))
+
+ggplot(variance_humans, aes(x=var, fill=day)) + geom_density(alpha=0.5) +xlim(-.25,8.0)+xlab("Variance") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(-.01, 2)
+
+variance_chimps <- data.frame(var=c(var_d0C, var_d1C, var_d2C, var_d3C), day = rep(c("D0","D1", "D2", "D3"), times =c(length(var_d0C), length(var_d1C), length(var_d2C), length(var_d3C))))
+
+ggplot(variance_chimps, aes(x=var, fill=day)) + geom_density(alpha=0.5) +xlim(-.25,8.0)+xlab("Variance") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(-.01, 2)
+
+t.test(var_d2C, var_d3C)
+
 ###Linear Model###
 #for i in length()
 #lmfit <- lm(dat_cpm_trimmed[i,] = species + day)
@@ -362,6 +372,74 @@ iplotCorr(as.character(expr))
 
 ### Ash ###
 
+### Pairwise Correlations ###
+
+pair_cor <- cor(dat_cpm)
+pair_cor <- as.data.frame(pair_cor)
+pair_cor$sample1 <- rownames(pair_cor)
+pair_cor_long <- gather(pair_cor, key = "sample2", value = "r", -sample1) %>%
+  mutate(sample2 = as.character(sample2)) %>%
+  filter(sample1 < sample2) %>% # ensures only one of the two entries is
+  arrange(sample1, sample2)     # maintained
+stopifnot(pair_cor_long$r < 1,
+          nrow(pair_cor_long) == (40*40 - 40) / 2)
+head(pair_cor_long)
+
+rownames(sample_features) <- colnames(dat_cpm)
+pair_cor_long$day1 <- ""
+pair_cor_long$day2 <- ""
+pair_cor_long$species1 <- ""
+pair_cor_long$species2 <- ""
+for (i in 1:nrow(pair_cor_long)) {
+  pair_cor_long$day1[i] <- sample_features[pair_cor_long$sample1[i], "Day"]
+  pair_cor_long$day2[i] <- sample_features[pair_cor_long$sample2[i], "Day"]
+  pair_cor_long$species1[i] <- sample_features[pair_cor_long$sample1[i], "Species"]
+  pair_cor_long$species2[i] <- sample_features[pair_cor_long$sample2[i], "Species"]
+}
+head(pair_cor_long)
+
+pair_cor_long$human <- NA
+pair_cor_long$chimp <- NA
+pair_cor_long$cross <- NA
+pair_cor_long$all <- NA
+for (i in 1:nrow(pair_cor_long)) {
+  # Do not include comparisons across days
+  if (pair_cor_long$day1[i] != pair_cor_long$day2[i]) {
+    next
+  }
+  pair_cor_long$all[i] <- pair_cor_long$r[i]
+  if (pair_cor_long$species1[i] == "2" &
+      pair_cor_long$species2[i] == "2") {
+    pair_cor_long$human[i] <- pair_cor_long$r[i]
+  } else if (pair_cor_long$species1[i] == "1" &
+             pair_cor_long$species2[i] == "1") {
+    pair_cor_long$chimp[i] <- pair_cor_long$r[i]
+  } else {
+    pair_cor_long$cross[i] <- pair_cor_long$r[i]
+  }
+}
+head(pair_cor_long)
+
+df_plot <- gather(pair_cor_long, key = "comparison", value = "correlation",
+                  human, chimp, cross, all, na.rm = TRUE)
+stopifnot(sum(df_plot$comparison == "all") ==
+            sum(df_plot$comparison == "human") +
+            sum(df_plot$comparison == "chimp") +
+            sum(df_plot$comparison == "cross"),
+          df_plot$day1 == df_plot$day2)
+head(df_plot)
+
+df_plot$comparison <- factor(df_plot$comparison,
+                             levels = c("chimp", "human", "cross", "all"),
+                             labels = c("Within chimps", "Within humans",
+                                        "Between species", "All comparisons"))
+table(df_plot$comparison)
+
+ggplot(df_plot, aes(x = day1, y = correlation)) +
+  geom_boxplot() +
+  facet_wrap(~comparison) +
+  labs(x = "Day", y = "Pearson's r", title = "Evidence of canalization?")
+  
 
 ###Limma###
 dim(both_minus)
@@ -389,6 +467,9 @@ output_all <- topTable(fit2, number=20000, sort.by="none")
 #output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
 #output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
 head(output_all)
+dim(output_all)
+
+mean(abs(output_all$speciesH.day2))
 
 Bspecies <- output_all$speciesC
 Bspecies_chimpref <- Bspecies
@@ -447,6 +528,17 @@ sigspecies1 <- adjPspecies1[adjPspecies1 < 0.05]
 sigspecies1 <- sigspecies1[order(sigspecies1)]
 sigspecies1names <- names(sigspecies1)
 length(sigspecies1)
+
+ensembl <- useMart(host = "sep2013.archive.ensembl.org",
+                   biomart = "ENSEMBL_MART_ENSEMBL",
+                   dataset = "hsapiens_gene_ensembl")
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id","hgnc_symbol"),values=rownames(output_all),mart= ensembl)
+output_all<- output_all[gene_names[,1] %in% rownames(output_all),]
+all(rownames(output_all) == gene_names[,1])
+rownames(output_all) == gene_names[,1]
+rownames(output_all) <- gene_names[,2]
+
+
 
 BspeciesD2 <- output_all$speciesH.day2
 names(BspeciesD2) <- rownames(output_all)
@@ -542,12 +634,22 @@ rownames(Betas) <- rownames(output_all)
 rownames(Betas)
 heatmap(Betas)
 hist(Bspecies)
-hist(BD1)
-hist(BD2)
-hist(BD3)
+hist(abs(BD1))
+hist(abs(BD2))
+hist(abs(BD3))
 hist(BspeciesD1)
 hist(BspeciesD2)
 hist(BspeciesD3)
+t.test(abs(BD3), abs(BD2))
+effect_size <- data.frame(ef=c(abs(BD1), abs(BD2), abs(BD3)), day = rep(c("D1", "D2", "D3"), times =c(length(BD1), length(BD2), length(BD3))))
+
+ggplot(effect_size, aes(x=ef, fill=day)) + geom_density(alpha=0.5) +xlim(-.25,8.0)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18))  
+#+scale_fill_manual(values=cols, labels=c("LCLs", "iPSCs"))
+
+effect_size_intrxn <- data.frame(ef=c(abs(BspeciesD1), abs(BspeciesD2), abs(BspeciesD3)), day = rep(c("sp.D1", "sp.D2", "sp.D3"), times =c(length(BspeciesD1), length(BspeciesD2), length(BspeciesD3))))
+
+ggplot(effect_size_intrxn, aes(x=ef, fill=day)) + geom_density(alpha=0.5) +xlim(-.25,8.0)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18))  +xlim(c(-0.1,5))
+t.test(BspeciesD2,BspeciesD3)
 
 for (coef in colnames(cont_matrix)) {
   stats_list[[coef]] <- topTable(fit2, coef = coef, number = nrow(counts),
@@ -568,14 +670,14 @@ design <- model.matrix(~ 0+m)
 #colnames(design) <- levels(m)
 design
 
-corfit <- duplicateCorrelation(both_minus,design,block=line)
+#corfit <- duplicateCorrelation(both_minus,design,block=line)
 
 cont_matrix<-makeContrasts(D0=mH.0-mC.0, D1 = mH.1-mC.1, D2 = mH.2-mC.2, D3 = mH.3-mC.3, levels=design)
 
-y <- DGEList(both_minus)
+y <- DGEList(dat_cpm_trimmed)
 y <- calcNormFactors(y)
 v <- voom(y, design)
-fit <- lmFit(v, design, block=line, correlation=corfit$consensus)
+fit <- lmFit(v, design ) #, block=line, correlation=corfit$consensus)
 fit2 <- contrasts.fit(fit, cont_matrix)
 fit2 <- eBayes(fit2)
 stats_list <- list()
@@ -586,6 +688,7 @@ output_all_1 <- topTable(fit2, coef="D1", number=20000, sort.by="none")
 output_all_2 <- topTable(fit2, coef="D2", number=20000, sort.by="none")
 output_all_3 <- topTable(fit2, coef="D3", number=20000, sort.by="none")
 head(output_all_0)
+mean(abs(output_all_0$logFC))
 
 dfs <- data.frame(output_all_0$logFC, output_all_1$logFC, output_all_2$logFC, output_all_3$logFC)
 for(i in 1:nrow(df.norm)){df.norm[i,]=df.norm[i,]/max(abs(df.norm[i,]))}
@@ -596,12 +699,10 @@ head(dfs)
 df.norm.hclust=hclust(as.matrix(df.norm[1:1000,]))
 plot(density((FC_all)))
 
-ggplot(dfs, aes(x=values)) + geom_density(aes(group=ind, color=ind))
+effect_size_spday <- data.frame(ef=c(abs(output_all_0$logFC), abs(output_all_1$logFC), abs(output_all_2$logFC), abs(output_all_3$logFC)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_all_0$logFC), length(output_all_1$logFC), length(output_all_2$logFC), length(output_all_3$logFC))))
 
-
-plot(density(output_all_3$logFC), density(output_all_2$logFC))
-ggplot(data=pcs, aes(x=pc2, y=pc3, color=day, shape=species, size=2)) +
-geom_density(mapping = NULL, data = NULL, stat = "density", position = "identity", ..., na.rm = FALSE, show.legend = NA, inherit.aes = TRUE)
+ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,5))
+t.test(BspeciesD2,BspeciesD3)
 
 ###Find Not significant genes###
 notsig0 <- output_all_0[(output_all_0$adj.P.Val)>0.01,]
@@ -654,7 +755,7 @@ sig_d2 <- rownames(output_D2)
 sig_d3 <- rownames(output_D3)
 
 par(mfrow=c(1,1))
-venn(list(sig0 = sig_d0, sig1= sig_d1, sig2=sig_d2, sig3=sig_d3))
+venn.diagram(list(A=sig_d0, B=sig_d1, C=sig_d2, D=sig_d3), "Venn.tiff")
 
 Number_d0 <- length(sig_d0)
 Number_d1 <- length(sig_d1)
