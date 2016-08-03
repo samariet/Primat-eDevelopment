@@ -4,6 +4,8 @@
 setwd("~/Documents/Primat-eDevelopment")
 library("limma")
 library("edgeR")
+library(Biobase)
+library(GEOquery)
 library("plyr")
 library("ggplot2")
 theme_set(theme_bw(base_size = 16))
@@ -96,8 +98,7 @@ barplot(bsh2[,1], names=bsh2[,2])
 
 ###CPM transformation###
 dat_cpm <- cpm(both_minus, log=TRUE)
-#dat_cpm <- cpm(both_minus, lib.size = colSums(both_minus) * #calcNormFactors(both_minus),
-                  log = TRUE)
+#dat_cpm <- cpm(both_minus, lib.size = colSums(both_minus) * #calcNormFactors(both_minus),log = TRUE)
 #dat_cpm[mapply(is.infinite(dat_cpm))] <- -99999
 dat_cpm[mapply(is.infinite, dat_cpm)] <- NA
 #dat_cpm[!is.finite(dat_cpm)] <- NA
@@ -201,7 +202,7 @@ groupid <- as.numeric(group_fac)
 # day0, day1, day2, day3, 
 compid_day <- data.frame(c1 = c(1, 2, 3, 4),
                          c2 = c(5, 6, 7, 8))
-compid_tran <- data.frame(c1 = c(1, 2, 3, 5, 6, 7),
+compid_tran <- data.frame(c1 = c(1, 1, 1, 5, 5, 5),
                           c2 = c(2, 3, 4, 6, 7, 8))
 compid_all <- data.frame(c1 = c(1, 2, 3, 4, 1, 2, 3, 5, 6, 7),
                          c2 = c(5, 6, 7, 8, 2, 3, 4, 6, 7, 8))
@@ -264,6 +265,37 @@ gene_prob_tran <- cormotif_tran$bestmotif$p.post
 rownames(gene_prob_tran) <- rownames(dat_cpm_trimmed)
 plotIC(cormotif_tran)
 plotMotif(cormotif_tran)
+dim(gene_prob_tran)
+
+ensembl <- useMart(host = "sep2013.archive.ensembl.org",
+                   biomart = "ENSEMBL_MART_ENSEMBL",
+                   dataset = "hsapiens_gene_ensembl")
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id","hgnc_symbol") ,values=rownames(gene_prob_tran),mart= ensembl)
+gene_prob_tran <- gene_prob_tran[rownames(gene_prob_tran) %in% gene_names[,1],]
+for (i in 1:nrow(gene_prob_tran)) {
+if(rownames(gene_prob_tran)[i] == gene_names[i,1]) {
+rownames(gene_prob_tran)[i] <- gene_names[i,2]
+}
+}
+
+prob_day_1  <- rownames(gene_prob_tran[(gene_prob_tran[,1] >0.9 & gene_prob_tran[,2] <0.5 & gene_prob_tran[,3] <0.5 & gene_prob_tran[,4] >0.9 & gene_prob_tran[,5] < 0.5 & gene_prob_tran[,6]<0.5),])
+length(prob_day_1)
+write.table(prob_day_1, file="prob_day_1.txt")
+
+prob_day_2  <- rownames(gene_prob_tran[(gene_prob_tran[,1] <0.5 & gene_prob_tran[,2] <0.5 & gene_prob_tran[,3] >0.9 & gene_prob_tran[,4] < 0.5 & gene_prob_tran[,5] < 0.5 & gene_prob_tran[,6]>0.9),])
+length(prob_day_2)
+write.table(prob_day_2, file="prob_day_2.txt")
+
+
+prob_day_3  <- rownames(gene_prob_tran[(gene_prob_tran[,1] <0.5 & gene_prob_tran[,2] >0.9 & gene_prob_tran[,3] >0.9 & gene_prob_tran[,4] < 0.5 & gene_prob_tran[,5] >0.9 & gene_prob_tran[,6]>0.9),])
+length(prob_day_3)
+write.table(prob_day_3, file="prob_day_3.txt")
+
+
+prob_clust_5  <- rownames(gene_prob_tran[(gene_prob_tran[,1] >0.5 & gene_prob_tran[,2] >0.9 & gene_prob_tran[,3] >0.9 & gene_prob_tran[,4] < 0.7 & gene_prob_tran[,5] <0.5& gene_prob_tran[,6]<0.5),])
+length(prob_clust_5)
+write.table(prob_clust_5, file="prob_clust_5.txt")
+
 
 #combined interspecies and diffentiation differences
 set.seed(12345)
@@ -294,9 +326,23 @@ plotMotif(cormotif_human)
 
 sessionInfo()
 ### Variance ###
+
+
+#counts <- read.delim("endoderm-counts-filtered.txt")
+#counts[1:10, 1:5]
+#anno <- read.delim("samplefactors-filtered.txt", stringsAsFactors = FALSE)
+#stopifnot(rownames(anno) == colnames(counts))
+#day <- day
+
 day <- as.factor(day)
 both <- dat_cpm_trimmed
 #both_day <- rbind(both, day)
+
+d0b <- both[,day=="0"]
+d1b <- both[,day=="1"]
+d2b <- both[,day=="2"]
+d3b <- both[,day=="3"]
+
 d0H <- both[,day=="0" & species=="H"]
 dim(d0H)
 d0C <- both[,day=="0" & species=="C"]
@@ -319,6 +365,22 @@ dim(d3H)
 d3C <- both[,day=="3" & species=="C"]
 dim(d3C)
 
+
+var_d0b <- apply(d0b, 1, var)
+var_d1b <- apply(d1b, 1, var)
+var_d2b <- apply(d2b, 1, var)
+var_d3b <- apply(d3b, 1, var)
+
+m0b <- mean(var_d0b)
+m1b <- mean(var_d1b)
+m2b <- mean(var_d2b)
+m3b <- mean(var_d3b)
+meansb <- c(m0b, m1b, m2b, m3b)
+plot(meansb)
+variance <- data.frame(var=c(var_d0b, var_d1b, var_d2b, var_d3b), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(var_d0b), length(var_d1b), length(var_d2b), length(var_d3b))))
+
+ggplot(variance, aes(x=var, fill=day)) + geom_density(alpha=0.5)+xlab("Variance") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,1))
+t.test(var_d1b, var_d3b)
 
 var_d0H <- apply(d0H, 1, var)
 hist(var_d0H)
@@ -377,7 +439,7 @@ iplotCorr(as.character(expr))
 counts <- read.delim("endoderm-counts-filtered.txt")
 counts[1:10, 1:5]
 sample_features <- read.delim("samplefactors-filtered.txt", stringsAsFactors = FALSE)
-stopifnot(rownames(anno) == colnames(counts))
+stopifnot(rownames(sample_features) == colnames(counts))
 
 pair_cor <- cor(counts)
 pair_cor <- as.data.frame(pair_cor)
@@ -445,6 +507,13 @@ ggplot(df_plot, aes(x = day1, y = correlation)) +
   facet_wrap(~comparison) +
   labs(x = "Day", y = "Pearson's r", title = "Evidence of canalization?")
   
+  day1cor_cross <- pair_cor_long[pair_cor_long$day1==1,]$cross
+  day0cor_cross <- pair_cor_long[pair_cor_long$day1==0,]$cross
+  day2cor_cross <- pair_cor_long[pair_cor_long$day1==2,]$cross
+  day3cor_cross <- pair_cor_long[pair_cor_long$day1==3,]$cross
+  t.test(na.omit(day1cor_cross), na.omit(day3cor_cross))
+mean(na.omit(day1cor_cross))
+mean(na.omit(day0cor_cross))
 
 ###Limma###
 dim(both_minus)
@@ -592,7 +661,7 @@ playdf <- data.frame(play,day,species)
 print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle(rownames(sig2)[i])+ ylab("expression"))
 }
 sig1 <- dat_cpm_trimmed[sigspecies1names,]
-for (i in 1:10) {
+for (i in 10:20) {
 play <- sig1[i,]
 playdf <- data.frame(play,day,species)
 #print(playdf)
@@ -675,7 +744,7 @@ stats_list <- llply(stats_list, function(x) cbind(gene = rownames(x), x))
 stats <- ldply(stats_list, .id = "test")
 stats$gene <- as.character(stats$gene)
 
-
+################### NO INTERACTION #################
 #design <- model.matrix(~0+ mymodel)
 #colnames(design) <- levels(mymodel)
 #mymodel <- data.frame(day,species)
@@ -687,13 +756,14 @@ design <- model.matrix(~ 0+m)
 design
 
 #corfit <- duplicateCorrelation(both_minus,design,block=line)
+corfit <- duplicateCorrelation(both_minus, design,block=line)
 
 cont_matrix<-makeContrasts(D0=mH.0-mC.0, D1 = mH.1-mC.1, D2 = mH.2-mC.2, D3 = mH.3-mC.3, levels=design)
 
-y <- DGEList(dat_cpm_trimmed)
+y <- DGEList(both_minus)
 y <- calcNormFactors(y)
 v <- voom(y, design)
-fit <- lmFit(v, design ) #, block=line, correlation=corfit$consensus)
+fit <- lmFit(v, design, block=line, correlation=corfit$consensus)
 fit2 <- contrasts.fit(fit, cont_matrix)
 fit2 <- eBayes(fit2)
 stats_list <- list()
@@ -715,9 +785,9 @@ head(dfs)
 df.norm.hclust=hclust(as.matrix(df.norm[1:1000,]))
 plot(density((FC_all)))
 
-effect_size_spday <- data.frame(ef=c(abs(output_all_0$B), abs(output_all_1$B), abs(output_all_2$B), abs(output_all_3$B)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_all_0$logFC), length(output_all_1$logFC), length(output_all_2$logFC), length(output_all_3$logFC))))
+effect_size_spday <- data.frame(ef=c(abs(output_all_0$logFC), abs(output_all_1$logFC), abs(output_all_2$logFC), abs(output_all_3$logFC)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_all_0$logFC), length(output_all_1$logFC), length(output_all_2$logFC), length(output_all_3$logFC))))
 
-ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,5))
+ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,2))
 t.test(BspeciesD2,BspeciesD3)
 
 ###Find Not significant genes###
@@ -736,10 +806,10 @@ Number_notsig <- length(notsig_any)
 #pv_list_raw <- output_all[,4, drop=FALSE]
 #pv_list_adj <- output_all[,5, drop=FALSE]
 
-output_D0 <- topTable(fit2, coef = "D0", number=20000, p.value=.01) #default adjust method is BH
-output_D1 <- topTable(fit2, coef = "D1", number=20000, p.value=.01) 
-output_D2 <- topTable(fit2, coef = "D2", number=20000, p.value=.01) 
-output_D3 <- topTable(fit2, coef = "D3", number=20000, p.value=.01) 
+<!-- output_D0 <- topTable(fit2, coef = "D0", number=20000, p.value=.01) #default adjust method is BH -->
+<!-- output_D1 <- topTable(fit2, coef = "D1", number=20000, p.value=.01)  -->
+<!-- output_D2 <- topTable(fit2, coef = "D2", number=20000, p.value=.01)  -->
+<!-- output_D3 <- topTable(fit2, coef = "D3", number=20000, p.value=.01)  -->
 
 output_D0 <- output_all_0[(output_all_0$adj.P.Val)<0.01,]
 output_D1 <- output_all_1[(output_all_1$adj.P.Val)<0.01,]
@@ -754,10 +824,18 @@ mean_effect_D3 <- mean(abs(output_all_3$logFC))
 mean_effects <- c(mean_effect_D0, mean_effect_D1, mean_effect_D2, mean_effect_D3)
 plot(mean_effects)
 
-effect_size_spday <- data.frame(ef=c(abs(output_D0$logFC), abs(output_D1$logFC), abs(output_D2$logFC), abs(output_D3$logFC)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_D0$logFC), length(output_D1$logFC), length(output_D2$logFC), length(output_D3$logFC))))
+mean_effect_D0x <- mean(abs(output_D0$logFC))
+mean_effect_D1x <- mean(abs(output_D1$logFC))
+mean_effect_D2x <- mean(abs(output_D2$logFC))
+mean_effect_D3x <- mean(abs(output_D3$logFC))
+
+mean_effectsx <- c(mean_effect_D0x, mean_effect_D1x, mean_effect_D2x, mean_effect_D3x)
+plot(mean_effectsx)
+
+effect_size_spday <- data.frame(ef=c(abs(output_D0$B), abs(output_D1$B), abs(output_D2$B), abs(output_D3$B)), day = rep(c("D0", "D1", "D2", "D3"), times =c(length(output_D0$logFC), length(output_D1$logFC), length(output_D2$logFC), length(output_D3$logFC))))
 
 ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,5))
-t.test(BspeciesD2,BspeciesD3)
+t.test(abs(output_D1$logFC), abs(output_D3$logFC))
 
 
 
@@ -947,13 +1025,32 @@ print(ggplot(data=playdf, aes(x=day, y=play, fill=species)) + geom_boxplot(aes(f
 }
 
 ###Specific Genes###
+
+tfs <- unlist(read.table("TFSensg.txt"))
+
+tfs_dat <- dat_cpm[rownames(dat_cpm) %in% tfs,]
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id","hgnc_symbol"),values=rownames(tfs_dat),mart= ensembl)
+tfs_dat <- tfs_dat[rownames(tfs_dat) %in% gene_names[,1],]
+all(rownames(tfs_dat) == gene_names[,1])
+rownames(tfs_dat) <- gene_names[,2]
+rownames(tfs_dat)[12] <- "BRACHYURY"
+heatmap(tfs_dat)
+
+ggplot(effect_size_spday, aes(x=ef, fill=day)) + geom_density(alpha=0.5)+xlab("Effect_size") + theme(legend.position=c(.75,.75), legend.title=element_blank(), axis.title=element_text(size=14), panel.background=element_rect(fill='white')) + theme(text = element_text(size=18)) +xlim(c(-0.1,5))
+
 expr_foxp2 <- dat_cpm_trimmed["ENSG00000128573", ]
 foxp2 <- data.frame(expr_foxp2,day,species)
 ggplot(data=foxp2, aes(x=day, y=expr_foxp2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("FOXP2")
 
+expr_tmem65 <- dat_cpm_trimmed["ENSG00000164983", ]
+tmem65 <- data.frame(expr_tmem65,day,species)
+ggplot(data=tmem65, aes(x=day, y=expr_tmem65, fill=species)) + geom_boxplot(aes(fill=species)) + ylab("expression TMEM65")
+
+
 expr_apoe <- dat_cpm_trimmed["ENSG00000130203", ]
 apoe <- data.frame(expr_apoe,day,species)
-ggplot(data=apoe, aes(x=day, y=expr_apoe, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("APOE")
+ggplot(data=apoe, aes(x=day, y=expr_apoe, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("APOE")+ 
+  ylab("expression of ApoE")
 
 nrxn<- dat_cpm_trimmed["ENSG00000179915", ]
 nrxndf<- data.frame(nrxn,day,species)
@@ -963,6 +1060,13 @@ pdx1<- dat_cpm_trimmed["ENSG00000164736", ]
 pdx1df<- data.frame(pdx1,day,species)
 ggplot(data=pdx1df, aes(x=day, y=pdx1, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("PDX1")
 
+foxh1<- dat_cpm_trimmed["ENSG00000160973", ]
+foxh1<- data.frame(foxh1,day,species)
+ggplot(data=foxh1, aes(x=day, y=foxh1, fill=species)) + geom_boxplot(aes(fill=species)) + ylab("FoxH1 Expression"
+)
+
+
+
 sox2<- dat_cpm_trimmed["ENSG00000163508", ]
 sox2df<- data.frame(sox2,day,species)
 ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("EOMES")
@@ -971,9 +1075,18 @@ sox2<- dat_cpm_trimmed["ENSG00000121966", ]
 sox2df<- data.frame(sox2,day,species)
 ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("CXCR4")
 
-sox2<- dat_cpm_trimmed["ENSG00000157404", ]
+wnt3a<- dat_cpm_trimmed["ENSG00000108379", ]
+wntdf<- data.frame(wnt3a,day,species)
+ggplot(data=wntdf, aes(x=day, y=wnt3a, fill=species)) + geom_boxplot(aes(fill=species)) + ylab("Wnt3a Expression")
+
+bra<- dat_cpm_trimmed["ENSG00000164458", ]
+bradf<- data.frame(bra,day,species)
+ggplot(data=bradf, aes(x=day, y=bra, fill=species)) + geom_boxplot(aes(fill=species)) + ylab("Brachyury Expression")
+
+sox2<- dat_cpm_trimmed["ENSG00000075388", ]
 sox2df<- data.frame(sox2,day,species)
-ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("ckit")
+ggplot(data=sox2df, aes(x=day, y=sox2, fill=species)) + geom_boxplot(aes(fill=species)) + ggtitle("SOX2")
+
 
 ###Values###
 Number_notsig #844
@@ -992,7 +1105,7 @@ always_sig <- length(sig_all)
 
 collect_total <- c(sig_day0, sig_day1, sig_day2, sig_day3, Number_notsig, always_sig)
 plot(collect_total, xaxt="n", xlab="day", ylab="number significant", main="Total Genes Significant in Each Day")
-axis(side=1, at=1:6, labels=c("sig_d0_total", "sig_d1_total", "sig_d2_total", "sig_d3_total", "never_sig", "always_sig"))
+axis(side=1, at = c(0.5, 2.5, 2.5, 3.5, 4.5, 5.5), tick=FALSE, labels=c("Day 0", "Day 1", "Day 2", "Day 3", "never DE", "always DE"))
 
 
 
@@ -1002,8 +1115,15 @@ sig_day2_only <- length(sig_d2_only)
 sig_day3_only <- length(sig_d3_only)
 
 length(sig_all)
+collect_total_barplot <- c((sig_day0-sig_day0_only), (sig_day1-sig_day1_only), (sig_day2-sig_day2_only), (sig_day3-sig_day3_only), Number_notsig, always_sig)
+collect_only <- c(length(sig_d0_only), length(sig_d1_only), length(sig_d2_only), length(sig_d3_only), 0, 0)
+msig <- rbind(collect_total_barplot, collect_only)
+colnames(msig) <- c("Day 0", "Day 1", "Day 2", "Day 3", "never DE", "always DE")
 
-collect_only <- c(length(sig_d0_only), length(sig_d1_only), length(sig_d2_only), length(sig_d3_only))
+barplot(msig, ylab="Number")
+axis(side=1, at = c(1.2 ,2.4, 2.5, 3.5, 4.5, 5.5), tick=FALSE, labels=c("Day 0", "Day 1", "Day 2", "Day 3", "never DE", "always DE"))
+
+
 plot(collect_only, xaxt="n", xlab="day", ylab="number significant", main="Genes Significant Only in One Day")
 axis(side=1, at=1:4, labels=c("sig_d0_only", "sig_d1_only", "sig_d2_only", "sig_d3_only"))
 
@@ -1029,6 +1149,8 @@ legend(7,1, c("human", "chimp"), col = c("cadetblue4", "hotpink"),
        text.col = c("cadetblue4", "hotpink"),  pch = c(16,16),
        merge = TRUE, bg = "gray90")
 
+
+Master <- c("ENSG00000111704", ENSG0000181449, ENSG00000079313, ENSG00000125798)
 boxplot(var_d0H, var_d0C, var_d1H, var_d1C, var_d2H, var_d2C, var_d3H, var_d3C, ylim=c(0,4))
 #table of all
 all_genes <- rownames(dat_cpm_trimmed)
@@ -1071,4 +1193,16 @@ write.csv (sig_collect_arise, file="sig_arise.txt")
 sig_collect_only <- cbind(sig_d0_only, sig_d1_only, sig_d2_only, sig_d3_only)
 write.csv(sig_collect_only, file="sig_only.txt")
 
+#### Mouse ########################
+ensembl <- useMart(host = "sep2013.archive.ensembl.org",
+                   biomart = "ENSEMBL_MART_ENSEMBL",
+                   dataset = "hsapiens_gene_ensembl")
+gene_names <- getBM(filters= "ensembl_gene_id", attributes= c("ensembl_gene_id",
+"hgnc_symbol"),values=rownames(gene_prob_day),mart= mart)
+gene_prob_day <- gene_prob_day[rownames(gene_prob_day) %in% gene_names[,1],]
+all(rownames(gene_prob_day) == gene_names[,1])
+rownames(gene_prob_day) <- gene_names[,2]
 
+gds3904 <- getGEO(filename='GDS3904.soft')
+eset <- GDS2eSet(gds3904, do.log2=TRUE)
+match <- exprs(eset[])
